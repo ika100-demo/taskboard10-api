@@ -35,6 +35,21 @@ def _stored_count(url: str) -> int:
     return int(row[0])
 
 
+def _wait_until_postgres_accepts(url: str) -> None:
+    """Block until Postgres itself accepts connections (not via the API under test)."""
+    import psycopg
+
+    deadline = time.monotonic() + 30
+    while True:
+        try:
+            with psycopg.connect(url, connect_timeout=2):
+                return
+        except psycopg.OperationalError:
+            if time.monotonic() > deadline:
+                raise
+            time.sleep(0.2)
+
+
 def test_tasks_survive_restart(database_url):  # AC-002.1
     with _new_client() as api:
         a = api.post("/tasks", json={"title": "A", "due_date": "2030-01-02"})
@@ -64,10 +79,21 @@ def test_create_contract_unchanged_against_database(database_url):  # AC-002.2
         assert set(body) == {"id", "title", "due_date"}
         assert body["title"] == "Write"
         assert body["due_date"] == "2031-05-06"
-        assert api.post("/tasks", json={"title": "   "}).status_code == 422
-        assert api.post("/tasks", json={"title": "x" * 201}).status_code == 422
-        assert api.post("/tasks", json={}).status_code == 422
-        assert api.post("/tasks", json={"title": "t", "due_date": "nope"}).status_code == 422
+        invalid = [
+            ({"title": "   "}, "title"),
+            ({"title": "x" * 201}, "title"),
+            ({}, "title"),
+            ({"title": 5}, "title"),
+            ({"title": "t", "due_date": "nope"}, "due_date"),
+        ]
+        for payload, field in invalid:
+            rejected = api.post("/tasks", json=payload)
+            assert rejected.status_code == 422
+            detail = rejected.json()["detail"]
+            assert isinstance(detail, list)
+            assert detail
+            assert any(entry["loc"][-1] == field for entry in detail)
+            assert all(entry["loc"][-1] in ("title", "due_date") for entry in detail)
         assert api.get("/tasks").json() == [body]
     assert _stored_count(database_url) == 1
 
@@ -127,10 +153,32 @@ def test_unreachable_url_answers_503(unreachable_database_url):  # AC-002.4
 def test_unset_url_answers_503(monkeypatch):  # AC-002.4
     monkeypatch.delenv("DATABASE_URL", raising=False)
     with _new_client() as api:
+        started = time.monotonic()
         got = api.get("/tasks")
+        assert time.monotonic() - started < 3
         assert got.status_code == 503
         assert got.json() == UNAVAILABLE
+        started = time.monotonic()
         posted = api.post("/tasks", json={"title": "x"})
+        assert time.monotonic() - started < 3
+        assert posted.status_code == 503
+        assert posted.json() == UNAVAILABLE
+        assert api.get("/health").status_code == 200
+        assert api.get("/ready").status_code == 200
+
+
+def test_wrong_host_answers_503(monkeypatch):  # AC-002.4
+    # 192.0.2.1 (TEST-NET-1) never answers: the connect only ends at the pool timeout.
+    monkeypatch.setenv("DATABASE_URL", "postgresql://postgres@192.0.2.1:5432/postgres")
+    with _new_client() as api:
+        started = time.monotonic()
+        got = api.get("/tasks")
+        assert time.monotonic() - started < 3
+        assert got.status_code == 503
+        assert got.json() == UNAVAILABLE
+        started = time.monotonic()
+        posted = api.post("/tasks", json={"title": "x"})
+        assert time.monotonic() - started < 3
         assert posted.status_code == 503
         assert posted.json() == UNAVAILABLE
         assert api.get("/health").status_code == 200
@@ -150,11 +198,8 @@ def test_recovers_when_database_returns(postgres, database_url):  # AC-002.5
         assert api.post("/tasks", json={"title": "lost"}).status_code == 503
         postgres.start()
         assert postgres.running
-        deadline = time.monotonic() + 15
+        _wait_until_postgres_accepts(database_url)
         got = api.get("/tasks")
-        while got.status_code != 200 and time.monotonic() < deadline:
-            time.sleep(0.5)
-            got = api.get("/tasks")
         assert got.status_code == 200
         assert got.json() == []
         created = api.post("/tasks", json={"title": "after"})

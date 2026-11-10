@@ -10,12 +10,14 @@ tasks:
     covers: [AC-002.4, AC-002.5]
     parallel_safe: true
     depends_on: []
+    done: true
   - id: t2
     title: Add PostgresTaskStore with lazy pool, schema bootstrap and unavailability errors
     files: [src/taskboard10_api/tasks/pg_store.py, pyproject.toml, uv.lock, tests/test_pg_store_unit.py]
     covers: [AC-002.1, AC-002.2, AC-002.3, AC-002.4, AC-002.5]
     parallel_safe: true
     depends_on: []
+    done: true
   - id: t3
     title: Wire the Postgres store into an app factory and answer 503 when it is unavailable
     files: [src/taskboard10_api/tasks/store.py, src/taskboard10_api/tasks/api.py, src/taskboard10_api/main.py, tests/test_task_store_unit.py, docs/env-vars.md]

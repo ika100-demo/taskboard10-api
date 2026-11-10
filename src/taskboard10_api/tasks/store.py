@@ -1,10 +1,21 @@
-"""Ordered, thread-safe in-memory task store."""
+"""Ordered, thread-safe in-memory task store and the repository protocol."""
 
 import threading
 import uuid
 from datetime import date
+from typing import Protocol, cast
+
+from fastapi import Request
 
 from taskboard10_api.tasks.models import Task
+
+
+class TaskRepository(Protocol):
+    """What the task endpoints need from a store."""
+
+    def create(self, title: str, due_date: date | None) -> Task: ...
+
+    def list_all(self) -> list[Task]: ...
 
 
 class TaskStore:
@@ -25,8 +36,5 @@ class TaskStore:
             return list(self._tasks)
 
 
-_default_store = TaskStore()
-
-
-def get_task_store() -> TaskStore:
-    return _default_store
+def get_task_store(request: Request) -> TaskRepository:
+    return cast(TaskRepository, request.app.state.task_store)

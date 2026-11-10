@@ -22,7 +22,7 @@ class _LazyTasksClient:
 
     def _ensure(self) -> TestClient:
         if self._client is None:
-            from taskboard10_api.tasks.store import TaskStore, get_task_store
+            from taskboard10_api.tasks.store import TaskStore, get_task_store  # noqa: I001
 
             from taskboard10_api.main import app
 

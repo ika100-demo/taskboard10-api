@@ -9,7 +9,8 @@
     "detect-secrets@1.5.0",
     "trivy@0.74.0",
     "git@latest",
-    "gh@latest"
+    "gh@latest",
+    "postgresql@16"
   ],
   "shell": {
     "init_hook": ["uv sync --all-extras 2>/dev/null || true"],
@@ -31,7 +32,9 @@
       "deps-findings": "bash scripts/deps.sh findings \"$@\"",
       "deps-bump":    "bash scripts/deps.sh bump \"$@\"",
       "ci":             "devbox run quality && devbox run test && devbox run security && if grep -qs '\"ci-extra\"[[:space:]]*:' devbox.json; then devbox run ci-extra; fi",
-      "image-build":    "docker build -t taskboard10-api:scan .",
+      "db-up":          "{ [ -f \"$PGDATA/PG_VERSION\" ] || initdb -D \"$PGDATA\" -U postgres --auth=trust --no-locale -E UTF8; } && devbox services start postgresql",
+      "db-down":        "devbox services stop postgresql",
+      "image-build":   "docker build -t taskboard10-api:scan .",
       "image-scan":     "trivy image --severity CRITICAL,HIGH --format table taskboard10-api:scan"
     }
   }

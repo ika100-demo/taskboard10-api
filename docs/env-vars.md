@@ -9,6 +9,12 @@ Configuration is read exclusively from environment variables. Defaults below are
 | `PORT` | `8080` | HTTP port the service listens on. |
 | `LOG_LEVEL` | `INFO` | Logging level. One of `DEBUG`, `INFO`, `WARNING`, `ERROR`. |
 
+## Database
+
+| Variable | Default | Description |
+|---|---|---|
+| `DATABASE_URL` | _(unset)_ | libpq URI of the Postgres database that stores tasks, in the form `postgresql://<user>:<password>@<host>:5432/<db>`. Unset or empty: the service starts, but `GET /tasks` and `POST /tasks` answer 503. The `PG*` variables are ignored. |
+
 ## Observability
 
 | Variable | Default | Description |

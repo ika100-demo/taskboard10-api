@@ -24,6 +24,7 @@ tasks:
     covers: [AC-002.1, AC-002.2, AC-002.3, AC-002.4, AC-002.5]
     parallel_safe: true
     depends_on: [t2]
+    done: true
 ---
 
 # Plan — 002 Store tasks in Postgres so they survive restarts and every instance sees the same list
